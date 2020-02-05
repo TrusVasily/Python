@@ -1,8 +1,9 @@
 import urllib.request
 
 import re
+from urllib.error import HTTPError
 
-import pandas
+import csv
 
 from matplotlib import pyplot as plt
 
@@ -16,15 +17,28 @@ def get_html(url):
     return response.read()
 
 
-def all_links(html):
+def all_links(html, deep, finalDeep):
     soup = BeautifulSoup(html, 'lxml')
     count = 0
-
+    arr = []
+    arr1 = []
     for link in soup.find_all('a'):
         link.get('href')
         count += 1
+        arr.append(link.get('href'))
 
-    return count
+    if deep < finalDeep:
+        for url in arr:
+            try:
+                html = get_html(url)
+                all_links(html, deep + 1, finalDeep)
+                arr1.append(url)
+            except ValueError:
+                arr.remove(url)
+            except HTTPError:
+                arr.remove(url)
+
+    return arr
 
 
 def all_images(html):
@@ -45,7 +59,6 @@ def all_words(html):
         text = re.sub('[^\w0-9 ]', '', word.get_text().lower())
         count.update(text.split(" "))
 
-    plt
     return count
 
 
@@ -64,7 +77,7 @@ def word_count(html):
     plt.show()
 
 
-def parse(html):
+def parse(html, path):
     soup = BeautifulSoup(html, 'lxml')
     table = soup.find('table', class_='dbi')
 
@@ -82,16 +95,24 @@ def parse(html):
             'SCORE': score[0].text.strip()
         })
 
-    return dbs
+        with open(path, 'w', encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+
+            writer.writerow(('Rank', 'DBMS', 'DB TYPE', 'SCORE'))
+            writer.writerows(
+                (dbs['RANK'], ''.join(dbs['DBMS']), dbs['TYPE DB'], dbs['SCORE']) for dbs in dbs
+            )
+
+    return writer
 
 
 def main():
-    url = 'https://db-engines.com/en/ranking'
-    print(parse(get_html(url)))
-    print('Amount of links on page =', all_links(get_html(url)))
+    url = 'https://www.google.com/'
+    #print(parse(get_html(url), 'dbs.csv'))
     print('Amount of images on page =', all_images(get_html(url)))
     print('Frequency of occurrence of DB types, which we can find on the page = ', all_words(get_html(url)))
     word_count(get_html(url))
+    print('Amount of links on page =', all_links(get_html(url), 1, 3))
 
 
 if __name__ == '__main__':
